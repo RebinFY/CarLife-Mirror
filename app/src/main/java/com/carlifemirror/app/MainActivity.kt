@@ -1138,7 +1138,7 @@ open class MainActivity : Activity() {
             return
         }
         settings.autoHomeDoneForSession = true
-        if (settings.splitAuto) {
+        if (settings.splitAuto && !settings.carpirdMode) {
             Logx.i("Старт: автосплит включён, приложение остаётся до появления split")
             return
         }
@@ -2264,6 +2264,7 @@ open class MainActivity : Activity() {
 
 
     private fun maybeAutoSplit(snapshot: MirrorSnapshot) {
+        if (settings.carpirdMode) return
         if (settingsVisible) return
         if (!snapshot.projectionReady) {
             splitRequested = false
