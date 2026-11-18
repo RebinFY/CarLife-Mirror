@@ -136,8 +136,12 @@ class ScreenEncoder(
         codec = c
         codecName = c.name
         inputSurface = surface
-        val g = GlLetterbox(surface!!, videoW, videoH, screenW, screenH, captureW, captureH, effectiveFps) {
-            Logx.i(it)
+        // The app-owned dashboard display feeds the codec surface directly;
+        // do not allocate an EGL/GL capture pipeline for this mode.
+        val g = if (carPirdDashboard) null else {
+            GlLetterbox(surface!!, videoW, videoH, screenW, screenH, captureW, captureH, effectiveFps) {
+                Logx.i(it)
+            }
         }
         try {
             if (carPirdDashboard) {
@@ -159,7 +163,7 @@ class ScreenEncoder(
                 Logx.i("CarPird: dashboard shown on secondary display")
             } else {
                 val p = projection ?: throw IllegalStateException("MediaProjection missing")
-                val capture = g.start()
+                val capture = g?.start() ?: throw IllegalStateException("GL capture pipeline недоступен")
                 gl = g
                 val display = p.createVirtualDisplay(
                     "CarLifeMirror",
@@ -176,7 +180,7 @@ class ScreenEncoder(
         } catch (e: Exception) {
             try { carPirdPresentation?.dismiss() } catch (_: Exception) {}
             carPirdPresentation = null
-            try { g.stop() } catch (_: Exception) {}
+            try { g?.stop() } catch (_: Exception) {}
             try { c.stop() } catch (_: Exception) {}
             try { c.release() } catch (_: Exception) {}
             try { surface?.release() } catch (_: Exception) {}
