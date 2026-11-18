@@ -306,7 +306,7 @@ class MirrorService : Service() {
                     }
                     launchMainActivity(openFromNotification = true)
                 }
-                if (projection == null && session == null) stopSelf()
+                if (!dashboardMode && projection == null && session == null) stopSelf()
                 return START_NOT_STICKY
             }
 
@@ -408,7 +408,7 @@ class MirrorService : Service() {
             }
 
             else -> {
-                if (projection == null && session == null) {
+                if (!dashboardMode && projection == null && session == null) {
                     cancelNotification()
                     stopSelf()
                 }
@@ -526,7 +526,7 @@ class MirrorService : Service() {
     private fun updateBrightnessForPhase(phase: Phase) {
         val previous = lastBrightnessPhase
         lastBrightnessPhase = phase
-        val active = phase == Phase.STREAMING || phase == Phase.PAUSED
+        val active = !dashboardMode && (phase == Phase.STREAMING || phase == Phase.PAUSED)
         val previousActive = previous == Phase.STREAMING || previous == Phase.PAUSED
         if (active && !previousActive) {
             if (settings.dimScreen) brightness.startSession()
@@ -538,7 +538,7 @@ class MirrorService : Service() {
     /** Перечитывает настройку после её изменения или выдачи разрешений. */
     private fun refreshBrightness() {
         val phase = MirrorState.value.phase
-        val active = phase == Phase.STREAMING || phase == Phase.PAUSED
+        val active = !dashboardMode && (phase == Phase.STREAMING || phase == Phase.PAUSED)
         if (active && settings.dimScreen) {
             brightness.startSession()
         } else {
