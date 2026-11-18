@@ -26,9 +26,9 @@ import java.util.Locale
  * It intentionally does not depend on MediaProjection.
  */
 class CarPirdPresentation(
-    context: Context,
-    display: android.view.Display,
-) : Presentation(context, display) {
+    private val hostContext: Context,
+    private val targetDisplay: android.view.Display,
+) : Presentation(hostContext, targetDisplay) {
 
     private val handler = Handler(Looper.getMainLooper())
     private var root: View? = null
@@ -56,7 +56,7 @@ class CarPirdPresentation(
         renderTiles()
         findViewById<View>(R.id.carpirdHome).setOnClickListener { renderClock() }
         findViewById<View>(R.id.carpirdBack).setOnClickListener {
-            context.startActivity(Intent(context, CarPirdActivity::class.java))
+            context.startActivity(Intent(hostContext, CarPirdActivity::class.java))
         }
         handler.post(tick)
     }
@@ -86,7 +86,7 @@ class CarPirdPresentation(
             Triple("Phone screen", "phone_screen", "▣"),
         )
         tiles.forEachIndexed { index, tile ->
-            val view = LinearLayout(context).apply {
+            val view = LinearLayout(hostContext).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isClickable = true
@@ -100,15 +100,15 @@ class CarPirdPresentation(
                     intArrayOf(0xFFF3F7FC.toInt(), 0xFF39485A.toInt())
                 ).apply { cornerRadius = 19f }
             }
-            val icon = ImageView(context).apply {
+            val icon = ImageView(hostContext).apply {
                 layoutParams = LinearLayout.LayoutParams(66, 66)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 val d = when {
-                    tile.second.startsWith("com.") -> try { context.packageManager.getApplicationIcon(tile.second) } catch (_: Exception) { null }
+                    tile.second.startsWith("com.") -> try { hostContext.packageManager.getApplicationIcon(tile.second) } catch (_: Exception) { null }
                     else -> null
                 }
                 if (d != null) setImageDrawable(d) else {
-                    val fallback = TextView(context).apply {
+                    val fallback = TextView(hostContext).apply {
                         text = tile.third
                         gravity = Gravity.CENTER
                         textSize = 30f
@@ -148,7 +148,7 @@ class CarPirdPresentation(
                 else -> null
             }
             if (intent != null) {
-                context.startActivity(intent)
+                hostContext.startActivity(intent)
             }
         } catch (_: Exception) {
             // Keep the dashboard alive if an optional target app is unavailable.
@@ -167,7 +167,7 @@ class CarPirdPresentation(
 
     fun mapPoint(x: Int, y: Int, videoW: Int, videoH: Int): PointF =
         PointF(
-            x.toFloat() * display.width / videoW.coerceAtLeast(1),
-            y.toFloat() * display.height / videoH.coerceAtLeast(1),
+            x.toFloat() * targetDisplay.width / videoW.coerceAtLeast(1),
+            y.toFloat() * targetDisplay.height / videoH.coerceAtLeast(1),
         )
 }
