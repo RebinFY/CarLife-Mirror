@@ -1837,7 +1837,7 @@ open class MainActivity : Activity() {
      */
     private fun syncSystemRotation() {
         syncActivityOrientation()
-        val streaming = MirrorState.value.projectionReady
+        val streaming = MirrorState.value.projectionReady && !settings.carpirdMode
         if (streaming && settings.systemLandscape) {
             if (RotationController.canWrite(this)) {
                 RotationController.enterLandscape(this)
@@ -1854,7 +1854,7 @@ open class MainActivity : Activity() {
      * разрешаем ей landscape, иначе системный экран не поворачивается.
      */
     private fun syncActivityOrientation() {
-        val target = if (MirrorState.value.projectionReady && settings.systemLandscape) {
+        val target = if (MirrorState.value.projectionReady && !settings.carpirdMode && settings.systemLandscape) {
             ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
         } else {
             ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
