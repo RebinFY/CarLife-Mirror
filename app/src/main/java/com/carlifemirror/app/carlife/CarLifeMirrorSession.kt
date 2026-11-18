@@ -926,6 +926,21 @@ class CarLifeMirrorSession(
             return
         }
         if (!settings.touchEnabled) return
+        val t = CarlifeTouch.parse(m.type, m.body) ?: return
+        val e = encoder ?: return
+        if (e.isCarPirdDashboard) {
+            val action = when (t.masked) {
+                0 -> android.view.MotionEvent.ACTION_DOWN
+                2 -> android.view.MotionEvent.ACTION_MOVE
+                1, 6 -> android.view.MotionEvent.ACTION_UP
+                5 -> android.view.MotionEvent.ACTION_POINTER_DOWN
+                else -> return
+            }
+            val point = e.mapTouch(t.x, t.y) ?: return
+            e.dispatchCarPirdTouch(t.x, t.y, action)
+            touchCount++
+            return
+        }
         val svc = MirrorAccessibilityService.instance
         if (svc == null) {
             MirrorState.update {
@@ -933,8 +948,6 @@ class CarLifeMirrorSession(
             }
             return
         }
-        val t = CarlifeTouch.parse(m.type, m.body) ?: return
-        val e = encoder ?: return
         val first = e.mapTouch(t.x, t.y)
         if (first == null) {
             if (t.masked == 1 || t.masked == 5 || t.masked == 6) {
