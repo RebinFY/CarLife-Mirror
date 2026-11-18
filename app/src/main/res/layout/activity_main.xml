@@ -199,6 +199,22 @@
                 android:textColor="@color/text_muted"
                 android:textSize="12sp"
                 android:visibility="gone" />
+
+            <Button
+                android:id="@+id/carpirdButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:background="@drawable/bg_button_secondary"
+                android:fontFamily="sans-serif-medium"
+                android:minHeight="56dp"
+                android:paddingTop="13dp"
+                android:paddingBottom="13dp"
+                android:stateListAnimator="@null"
+                android:text="@string/carpird_start"
+                android:textAllCaps="false"
+                android:textColor="@color/accent"
+                android:textSize="15sp" />
         </LinearLayout>
     </ScrollView>
 
