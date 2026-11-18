@@ -104,7 +104,7 @@ class MirrorService : Service() {
     }
 
     private fun attemptUsbRecovery() {
-        if (closing || projection == null || session != null) return
+        if (closing || !canConnect() || session != null) return
         if (!usbRecoveryPending) return
         if (settings.connectionMode != ConnectMode.USB) {
             clearUsbRecovery()
@@ -300,7 +300,7 @@ class MirrorService : Service() {
                             SplitApps.finishSplitHostTask(this)
                             SplitApps.bringMainTaskToFront(this)
                             launchMainActivity(openFromNotification = true)
-                            if (projection == null && session == null) stopSelf()
+                            if (!dashboardMode && projection == null && session == null) stopSelf()
                         }
                         return START_NOT_STICKY
                     }
@@ -428,7 +428,7 @@ class MirrorService : Service() {
                 "(mainAlive=$mainTaskAlive, splitAlive=$splitTaskAlive)"
         )
         if (!mainTaskAlive && !splitTaskAlive) {
-            if (!closing && (projection != null || session != null)) {
+            if (!closing && (canConnect() || session != null)) {
                 stopEverything(
                     "Приложение закрыто",
                     fromProjection = false,
@@ -450,7 +450,7 @@ class MirrorService : Service() {
     private val taskCleanup = Runnable {
         if (closing) return@Runnable
         if (hasMainTask() || hasSplitHostTask()) return@Runnable
-        if (projection != null || session != null) {
+        if (canConnect() || session != null) {
             Logx.i("Задача удалена: задач приложения не осталось, останавливаю трансляцию")
             stopEverything(
                 "Приложение закрыто",
@@ -461,6 +461,8 @@ class MirrorService : Service() {
     }
 
     override fun onDestroy() {
+        dashboardMode = false
+        settings.carpirdMode = false
         Logx.i("Сервис остановлен")
         Logx.i("Сервис: onDestroy начало")
         main.removeCallbacks(reconnectRunnable)
@@ -682,7 +684,7 @@ class MirrorService : Service() {
     }
 
     private fun connectUsb() {
-        if (closing || session != null || projection == null) return
+        if (closing || session != null || !canConnect()) return
         val list = usb.accessoryList
         if (list.isNullOrEmpty()) {
             MirrorState.update {
