@@ -51,6 +51,9 @@ class MirrorService : Service() {
     private var stopReturnToMain = true
     private var lastBrightnessPhase: Phase? = null
     private var projection: MediaProjection? = null
+    /** CarPird renders its own dashboard and deliberately does not request MediaProjection. */
+    private var dashboardMode = false
+    private fun canConnect(): Boolean = dashboardMode || projection != null
     private var session: CarLifeMirrorSession? = null
     private var sessionKind = ""
     private var sessionToken = 0
@@ -68,7 +71,7 @@ class MirrorService : Service() {
 
     @Volatile private var reconnectAttempts = 0
     private val reconnectRunnable = Runnable {
-        if (closing || session != null || projection == null) return@Runnable
+        if (closing || session != null || !canConnect()) return@Runnable
         Logx.i("Автопереподключение: попытка $reconnectAttempts")
         tryConnect()
     }
@@ -83,7 +86,7 @@ class MirrorService : Service() {
     }
 
     private fun startUsbRecovery(reason: String) {
-        if (closing || projection == null || session != null) return
+        if (closing || !canConnect() || session != null) return
         if (settings.connectionMode != ConnectMode.USB) return
         if (!usbRecoveryPending) {
             usbRecoveryPending = true
@@ -136,7 +139,7 @@ class MirrorService : Service() {
         if (closing) return
         if (settings.connectionMode != ConnectMode.USB) return
         Logx.i("USB: кабель отключён, закрываю сессию сразу")
-        if (projection == null && session == null) {
+        if (!dashboardMode && projection == null && session == null) {
             stopSelf()
             return
         }
@@ -172,7 +175,7 @@ class MirrorService : Service() {
                         usbRecoveryAttempts = 0
                         usbRecoveryReason = ""
                         main.removeCallbacks(usbRecovery)
-                        if (settings.connectionMode == ConnectMode.USB && projection != null) {
+                        if (settings.connectionMode == ConnectMode.USB && canConnect()) {
                             tryConnect()
                         }
                     }
@@ -248,7 +251,7 @@ class MirrorService : Service() {
                 // SecurityException и краш.
                 val closeApp = intent.getBooleanExtra(EXTRA_CLOSE_APP, false)
                 cancelNotification()
-                if (projection == null && session == null) {
+                if (!dashboardMode && projection == null && session == null) {
                     Logx.i("Стоп: активной трансляции нет, только убираю уведомление")
                     closing = true
                     try { RotationController.restore(this) } catch (_: Exception) {}
@@ -270,13 +273,13 @@ class MirrorService : Service() {
 
             ACTION_REFRESH_BRIGHTNESS -> {
                 refreshBrightness()
-                if (projection == null && session == null) stopSelf()
+                if (!dashboardMode && projection == null && session == null) stopSelf()
                 return START_NOT_STICKY
             }
 
             ACTION_REFRESH_AUDIO -> {
                 session?.refreshAudio()
-                if (projection == null && session == null) stopSelf()
+                if (!dashboardMode && projection == null && session == null) stopSelf()
                 return START_NOT_STICKY
             }
 
@@ -307,7 +310,31 @@ class MirrorService : Service() {
                 return START_NOT_STICKY
             }
 
+            ACTION_START_CARPIRD -> {
+                if (canConnect() || session != null) {
+                    stopEverything("تغییر به CarPird", fromProjection = false)
+                    return START_NOT_STICKY
+                }
+                Logx.rotateForNewSession(this)
+                Logx.i("CarPird: start app-owned dashboard without MediaProjection")
+                dashboardMode = true
+                closing = false
+                reconnectAttempts = 0
+                main.removeCallbacks(reconnectRunnable)
+                startForegroundCompat(buildNotification(MirrorState.value), dashboard = true)
+                acquireWakeLock()
+                MirrorState.update {
+                    it.copy(projectionReady = true, phase = if (settings.connectionMode == ConnectMode.WIRELESS) Phase.WAITING_WIFI else Phase.WAITING_USB,
+                        title = "CarPird — ئامادەیە",
+                        detail = if (settings.connectionMode == ConnectMode.WIRELESS) "Wi-Fi چالاکە؛ ئۆتۆمبێل پەیوەست بکە." else "USB پەیوەست بکە بە شاشەی ئۆتۆمبێل.",
+                        connection = settings.connectionMode, error = false)
+                }
+                tryConnect()
+            }
+
             ACTION_START -> {
+                dashboardMode = false
+                settings.carpirdMode = false
                 Logx.rotateForNewSession(this)
                 Logx.i("Старт: новая сессия трансляции")
                 startForegroundCompat(buildNotification(MirrorState.value))
@@ -519,7 +546,7 @@ class MirrorService : Service() {
     }
 
     private fun tryConnect() {
-        if (closing || session != null || projection == null) return
+        if (closing || session != null || !canConnect()) return
         MirrorState.update { it.copy(connection = settings.connectionMode) }
         if (settings.connectionMode == ConnectMode.WIRELESS) {
             startWireless()
@@ -529,7 +556,7 @@ class MirrorService : Service() {
     }
 
     private fun startWireless() {
-        if (closing || session != null || wireless != null || projection == null) return
+        if (closing || session != null || wireless != null || !canConnect()) return
         val permission = if (Build.VERSION.SDK_INT >= 33) {
             android.Manifest.permission.NEARBY_WIFI_DEVICES
         } else {
@@ -581,7 +608,7 @@ class MirrorService : Service() {
             },
             onReady = { transport ->
                 main.post {
-                    if (closing || projection == null || session != null) {
+                    if (closing || !canConnect() || session != null) {
                         try { transport.close() } catch (_: Exception) {}
                     } else {
                         wireless = null
@@ -629,8 +656,11 @@ class MirrorService : Service() {
             transport = transport,
             settings = settings,
             createEncoder = { w, h, fps, bitrate, listener ->
-                val p = projection ?: throw IllegalStateException("MediaProjection уже остановлен")
-                ScreenEncoder(this, p, w, h, fps, bitrate, listener)
+                if (dashboardMode) ScreenEncoder(this, null, w, h, fps, bitrate, listener, carPirdDashboard = true)
+                else {
+                    val p = projection ?: throw IllegalStateException("MediaProjection уже остановлен")
+                    ScreenEncoder(this, p, w, h, fps, bitrate, listener)
+                }
             },
             createAudio = { onPcm ->
                 val p = projection
@@ -741,8 +771,8 @@ class MirrorService : Service() {
             Logx.i("Сервис: onSessionClosed конец (closing)")
             return
         }
-        if (projection == null) {
-            MirrorState.update { it.copy(phase = Phase.IDLE, title = "Остановлено", detail = reason, error = false) }
+        if (!canConnect()) {
+            MirrorState.update { it.copy(phase = Phase.IDLE, title = "ئۆتۆمبێل پەیوەست نەبوو", detail = reason, projectionReady = false, error = false) }
         } else {
             val wirelessMode = settings.connectionMode == ConnectMode.WIRELESS
             MirrorState.update {
@@ -783,7 +813,7 @@ class MirrorService : Service() {
     }
 
     private fun shouldRecoverUsb(reason: String): Boolean {
-        if (closing || projection == null) return false
+        if (closing || !canConnect()) return false
         if (settings.connectionMode != ConnectMode.USB) return false
         if (usb.accessoryList?.isNotEmpty() != true) return false
         if (reason.contains("завершила сеанс", ignoreCase = true) ||
@@ -797,8 +827,8 @@ class MirrorService : Service() {
     }
 
     private fun scheduleReconnect(reason: String) {
-        if (projection == null || closing) return
-        if (sessionEverStarted && Build.VERSION.SDK_INT >= 34) {
+        if (!canConnect() || closing) return
+        if (!dashboardMode && sessionEverStarted && Build.VERSION.SDK_INT >= 34) {
             // Android 14+ запрещает повторно создавать VirtualDisplay на том
             // же MediaProjection. Честно возвращаемся на главный экран: там
             // пользователь одним нажатием выдаст новый захват.
@@ -870,6 +900,8 @@ class MirrorService : Service() {
     ) {
         if (closing) return
         closing = true
+        dashboardMode = false
+        settings.carpirdMode = false
         stopReturnToMain = returnToMain
         pendingStopReason = reason
         try { brightness.endSession() } catch (_: Exception) {}
@@ -1246,7 +1278,11 @@ class MirrorService : Service() {
         } catch (_: Exception) {}
     }
 
-    private fun startForegroundCompat(n: Notification) {
+    private fun startForegroundCompat(n: Notification, dashboard: Boolean = false) {
+        if (dashboard) {
+            startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
+            return
+        }
         try {
             startForeground(
                 NOTIF_ID,
@@ -1275,6 +1311,7 @@ class MirrorService : Service() {
 
     companion object {
         const val ACTION_START = "com.carlifemirror.app.START"
+        const val ACTION_START_CARPIRD = "com.carlifemirror.app.START_CARPIRD"
         const val ACTION_STOP = "com.carlifemirror.app.STOP"
         const val ACTION_OPEN_MAIN = "com.carlifemirror.app.OPEN_MAIN"
         const val ACTION_REFRESH_AUDIO = "com.carlifemirror.app.REFRESH_AUDIO"
