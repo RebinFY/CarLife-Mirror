@@ -136,6 +136,10 @@
     <string name="split_hint_choose_apps">Выберите приложения в настройках</string>
     <string name="primary_start_desc">Начать трансляцию экрана на ГУ</string>
     <string name="primary_stop_desc">Остановить трансляцию</string>
+    <string name="carpird_start">Запустить CarPird — отдельный экран автомобиля</string>
+    <string name="carpird_stop">Остановить CarPird</string>
+    <string name="stop_phone_screen_first">Сначала остановите режим «Экран телефона».</string>
+    <string name="carpird_start_error">Не удалось запустить CarPird.</string>
 
     <string name="permission_dialog_title">Доступ к системе</string>
     <string name="permission_dialog_sub">Для работы приложению нужны системные разрешения.</string>
