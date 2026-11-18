@@ -2557,14 +2557,14 @@ open class MainActivity : Activity() {
             val granted = hasWirelessPermissions()
             Logx.i("Разрешения для Wi-Fi: $granted")
             if (granted) {
-                if (pendingCarPirdStart) {
-                    pendingCarPirdStart = false
-                    startCarPirdSession()
-                }
                 if (pendingWirelessMode) {
                     pendingWirelessMode = false
                     settings.connectionMode = ConnectMode.WIRELESS
                     updateConnectionUi()
+                }
+                if (pendingCarPirdStart) {
+                    pendingCarPirdStart = false
+                    startCarPirdSession()
                 }
                 if (pendingWirelessForProjection) {
                     pendingWirelessForProjection = false
