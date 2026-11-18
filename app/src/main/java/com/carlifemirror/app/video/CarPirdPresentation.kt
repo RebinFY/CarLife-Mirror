@@ -121,7 +121,7 @@ class CarPirdPresentation(
             }
             if (icon.drawable != null) frame.addView(icon)
             view.addView(frame, LinearLayout.LayoutParams(86, 86))
-            view.addView(TextView(hostContext).apply {
+            view.addView(TextView(getContext()).apply {
                 text = tile.first
                 gravity = Gravity.CENTER
                 textSize = 13f
