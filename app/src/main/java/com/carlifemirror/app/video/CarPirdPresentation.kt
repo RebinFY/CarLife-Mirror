@@ -15,7 +15,7 @@ import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
-import com.carlifemirror.app.CarPirdActivity
+import com.carlifemirror.app.MainActivity
 import com.carlifemirror.app.R
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -56,7 +56,7 @@ class CarPirdPresentation(
         renderTiles()
         findViewById<View>(R.id.carpirdHome).setOnClickListener { renderClock() }
         findViewById<View>(R.id.carpirdBack).setOnClickListener {
-            hostContext.startActivity(Intent(hostContext, CarPirdActivity::class.java))
+            hostContext.startActivity(Intent(hostContext, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
         }
         handler.post(tick)
     }
@@ -148,6 +148,7 @@ class CarPirdPresentation(
                 else -> null
             }
             if (intent != null) {
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 hostContext.startActivity(intent)
             }
         } catch (_: Exception) {
