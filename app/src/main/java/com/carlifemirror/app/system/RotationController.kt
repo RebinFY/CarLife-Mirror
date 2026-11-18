@@ -63,6 +63,12 @@ object RotationController {
      * выхода из него возвращаем системный ландшафт.
      */
     fun onForegroundActivity(context: Context, packageName: String, className: String?) {
+        // CarPird owns a separate display; rotating the phone display is unrelated
+        // and can trigger disruptive launcher/app transitions on ColorOS.
+        if (com.carlifemirror.app.Settings(context).carpirdMode) {
+            resetPortraitTracking()
+            return
+        }
         if (!MirrorState.value.projectionReady) {
             resetPortraitTracking()
             return
@@ -91,6 +97,7 @@ object RotationController {
     }
 
     fun ensureLandscape(context: Context): Boolean {
+        if (com.carlifemirror.app.Settings(context).carpirdMode) return false
         if (!MirrorState.value.projectionReady) return false
         if (!com.carlifemirror.app.Settings(context).systemLandscape) return false
         if (!canWrite(context)) return false
@@ -123,7 +130,9 @@ object RotationController {
         pendingLandscape?.let { main.removeCallbacks(it) }
         val action = Runnable {
             pendingLandscape = null
-            if (MirrorState.value.projectionReady) {
+            if (!com.carlifemirror.app.Settings(app).carpirdMode &&
+                MirrorState.value.projectionReady
+            ) {
                 ensureLandscape(app)
             }
         }
