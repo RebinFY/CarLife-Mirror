@@ -37,15 +37,21 @@ class CarPirdPresentation(
     private var clock: TextView? = null
     private var date: TextView? = null
 
+    private var lastClockUpdate = 0L
+
+    // Some head units stop receiving frames when a secondary display is
+    // completely static. Keep the Presentation surface invalidated at the
+    // requested video cadence so MediaCodec continues producing fresh frames.
     private val tick = object : Runnable {
         override fun run() {
-            clock?.let {
-                it.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastClockUpdate >= 30_000L || lastClockUpdate == 0L) {
+                clock?.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+                date?.text = SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date())
+                lastClockUpdate = now
             }
-            date?.let {
-                it.text = SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(Date())
-            }
-            handler.postDelayed(this, 30_000L)
+            root?.postInvalidateOnAnimation()
+            handler.postDelayed(this, 33L)
         }
     }
 
