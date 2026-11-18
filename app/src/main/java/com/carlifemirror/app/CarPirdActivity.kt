@@ -8,25 +8,57 @@ import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
+import android.widget.GridLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
-import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
-/**
- * Landscape launcher shown on the phone while its display is mirrored to the car.
- * It intentionally stays in the foreground instead of sending the user to Android Home.
- */
+/** CarPird's interactive landscape launcher shown during an active CarLife session. */
 class CarPirdActivity : Activity() {
-    private val featuredApps = listOf(
-        FeaturedApp("YouTube", "com.google.android.youtube", 0xFF292929.toInt()),
-        FeaturedApp("Google Maps", "com.google.android.apps.maps", 0xFF173B32.toInt()),
-        FeaturedApp("Waze", "com.waze", 0xFF173B55.toInt()),
+    private val clockHandler = Handler(Looper.getMainLooper())
+    private lateinit var clockView: TextView
+    private lateinit var dateView: TextView
+
+    private data class AppTile(
+        val label: String,
+        val kind: TileKind,
+        val packageName: String? = null,
+        val fallback: String,
+        val tint: Int
     )
+
+    private enum class TileKind { TV, YOUTUBE, BROWSER, WAZE, MAPS, MUSIC, SETTINGS, PHONE_SCREEN }
+
+    private val tiles = listOf(
+        AppTile("TV", TileKind.TV, fallback = "TV", tint = 0xFFF3F7FC.toInt()),
+        AppTile("YouTube", TileKind.YOUTUBE, "com.google.android.youtube", "▶", 0xFFF3F7FC.toInt()),
+        AppTile("Browser", TileKind.BROWSER, fallback = "◎", tint = 0xFFF3F7FC.toInt()),
+        AppTile("Waze", TileKind.WAZE, "com.waze", "◉", 0xFF08A9E8.toInt()),
+        AppTile("Maps", TileKind.MAPS, "com.google.android.apps.maps", "⌖", 0xFFF3F7FC.toInt()),
+        AppTile("Music", TileKind.MUSIC, fallback = "♫", tint = 0xFF9C36D5.toInt()),
+        AppTile("Settings", TileKind.SETTINGS, fallback = "⚙", tint = 0xFF39485A.toInt()),
+        AppTile("Phone screen", TileKind.PHONE_SCREEN, fallback = "▣", tint = 0xFFFF8A27.toInt())
+    )
+
+    private val clockTick = object : Runnable {
+        override fun run() {
+            if (!isFinishing && ::clockView.isInitialized) {
+                val now = Date()
+                clockView.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+                dateView.text = SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(now)
+                clockHandler.postDelayed(this, 30_000L)
+            }
+        }
+    }
 
     private val mirrorListener: (MirrorSnapshot) -> Unit = { snapshot ->
         if (!snapshot.projectionReady) runOnUiThread { finish() }
@@ -39,6 +71,7 @@ class CarPirdActivity : Activity() {
             return
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = (
             View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
@@ -48,155 +81,200 @@ class CarPirdActivity : Activity() {
                 View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
             )
         setContentView(R.layout.activity_carpird)
-        findViewById<TextView>(R.id.carpirdSettings).setOnClickListener { openMain(settings = true) }
-        findViewById<TextView>(R.id.carpirdExit).setOnClickListener { openMain(settings = false) }
-        renderFeatured()
-        renderInstalledApps()
+        clockView = findViewById(R.id.carpirdClock)
+        dateView = findViewById(R.id.carpirdDate)
+        renderClock()
+        renderAppTiles()
+        findViewById<View>(R.id.carpirdHome).setOnClickListener { renderClock() }
+        findViewById<View>(R.id.carpirdBack).setOnClickListener { openMain() }
     }
 
     override fun onResume() {
         super.onResume()
         MirrorState.addListener(mirrorListener)
         if (!MirrorState.value.projectionReady) finish()
+        clockHandler.removeCallbacks(clockTick)
+        clockHandler.post(clockTick)
     }
 
     override fun onPause() {
+        clockHandler.removeCallbacks(clockTick)
         MirrorState.removeListener(mirrorListener)
         super.onPause()
     }
 
-    private fun openMain(settings: Boolean) {
+    override fun onDestroy() {
+        clockHandler.removeCallbacksAndMessages(null)
+        super.onDestroy()
+    }
+
+    private fun renderClock() {
+        if (::clockView.isInitialized) {
+            val now = Date()
+            clockView.text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now)
+            dateView.text = SimpleDateFormat("EEE dd MMM", Locale.ENGLISH).format(now)
+        }
+    }
+
+    private fun renderAppTiles() {
+        val grid = findViewById<GridLayout>(R.id.carpirdAppGrid)
+        grid.removeAllViews()
+        tiles.forEachIndexed { index, tile ->
+            val tileView = createTile(tile)
+            val params = GridLayout.LayoutParams(
+                GridLayout.spec(index / 4, 1f),
+                GridLayout.spec(index % 4, 1f)
+            ).apply {
+                width = 0
+                height = 0
+                setMargins(dp(7), dp(4), dp(7), dp(4))
+            }
+            grid.addView(tileView, params)
+        }
+    }
+
+    private fun createTile(tile: AppTile): View {
+        val column = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setOnClickListener { launchTile(tile) }
+            setPadding(dp(4), dp(2), dp(4), dp(2))
+        }
+        val iconFrame = LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TL_BR,
+                intArrayOf(
+                    lighten(tile.tint, 28),
+                    tile.tint,
+                    darken(tile.tint, 22)
+                )
+            ).apply {
+                cornerRadius = dp(19).toFloat()
+                setStroke(dp(1), 0x66FFFFFF)
+            }
+            elevation = dp(7).toFloat()
+        }
+        val icon = ImageView(this).apply {
+            layoutParams = LinearLayout.LayoutParams(dp(57), dp(57))
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            val packageName = tile.packageName
+            val drawable = packageName?.let {
+                try { packageManager.getApplicationIcon(it) } catch (_: Exception) { null }
+            }
+            if (drawable != null) {
+                setImageDrawable(drawable)
+                setPadding(dp(4), dp(4), dp(4), dp(4))
+            } else {
+                visibility = View.GONE
+            }
+        }
+        val fallback = TextView(this).apply {
+            text = tile.fallback
+            gravity = Gravity.CENTER
+            textSize = if (tile.kind == TileKind.TV) 25f else 34f
+            typeface = if (tile.kind == TileKind.TV) Typeface.SERIF else Typeface.DEFAULT
+            setTextColor(if (tile.kind == TileKind.SETTINGS) 0xFFE7EDF5.toInt() else Color.WHITE)
+            layoutParams = LinearLayout.LayoutParams(dp(66), dp(66))
+            visibility = if (icon.drawable == null) View.VISIBLE else View.GONE
+        }
+        iconFrame.addView(icon)
+        iconFrame.addView(fallback)
+        column.addView(iconFrame, LinearLayout.LayoutParams(dp(86), dp(86)))
+        column.addView(TextView(this).apply {
+            text = tile.label
+            gravity = Gravity.CENTER
+            textSize = 13f
+            maxLines = 1
+            setTextColor(0xFFF3F7FF.toInt())
+            typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        return column
+    }
+
+    private fun launchTile(tile: AppTile) {
+        try {
+            when (tile.kind) {
+                TileKind.SETTINGS -> openMain(settings = true)
+                TileKind.PHONE_SCREEN -> {
+                    val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                    startActivity(home)
+                }
+                TileKind.BROWSER -> {
+                    val browser = Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://www.google.com"))
+                    startActivity(browser)
+                }
+                TileKind.MUSIC -> launchMusic()
+                TileKind.TV -> launchTv()
+                TileKind.YOUTUBE, TileKind.WAZE, TileKind.MAPS -> {
+                    val pkg = tile.packageName!!
+                    val launch = packageManager.getLaunchIntentForPackage(pkg)
+                    if (launch == null) unavailable(tile.label) else startActivity(launch)
+                }
+            }
+        } catch (_: Exception) {
+            unavailable(tile.label)
+        }
+    }
+
+    private fun launchMusic() {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC)
+        val resolved = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        if (resolved != null) {
+            startActivity(intent)
+            return
+        }
+        launchByLabel(listOf("music", "spotify", "player", "audio"), "Music")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun launchTv() {
+        val leanback = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
+        val tvApp = packageManager.queryIntentActivities(leanback, PackageManager.MATCH_ALL).firstOrNull()
+        if (tvApp != null) {
+            startActivity(leanback.setClassName(tvApp.activityInfo.packageName, tvApp.activityInfo.name))
+            return
+        }
+        launchByLabel(listOf("iptv", "tv", "television", "live"), "TV")
+    }
+
+    @Suppress("DEPRECATION")
+    private fun launchByLabel(keywords: List<String>, label: String) {
+        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        val match = packageManager.queryIntentActivities(launcher, PackageManager.MATCH_ALL)
+            .firstOrNull { info ->
+                val appLabel = info.loadLabel(packageManager).toString().lowercase(Locale.ROOT)
+                keywords.any { appLabel.contains(it) }
+            }
+        if (match == null) {
+            unavailable(label)
+            return
+        }
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setClassName(match.activityInfo.packageName, match.activityInfo.name)
+        startActivity(intent)
+    }
+
+    private fun unavailable(label: String) {
+        Toast.makeText(this, "$label app is not installed or cannot be opened", Toast.LENGTH_LONG).show()
+    }
+
+    private fun openMain(settings: Boolean = false) {
         val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
         if (settings) intent.putExtra(MainActivity.EXTRA_OPEN_SETTINGS, true)
         startActivity(intent)
     }
 
-    private fun renderFeatured() {
-        val container = findViewById<LinearLayout>(R.id.featuredApps)
-        featuredApps.forEach { app ->
-            val card = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                gravity = Gravity.CENTER
-                background = rounded(app.color, dp(20))
-                isClickable = true
-                isFocusable = true
-                setPadding(dp(10), dp(12), dp(10), dp(12))
-                setOnClickListener { launchPackage(app.packageName, app.label) }
-            }
-            val icon = ImageView(this).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(52), dp(52))
-                try {
-                    setImageDrawable(packageManager.getApplicationIcon(app.packageName))
-                } catch (_: Exception) {
-                    setImageResource(android.R.drawable.sym_def_app_icon)
-                }
-            }
-            val label = TextView(this).apply {
-                text = app.label
-                setTextColor(Color.WHITE)
-                textSize = 16f
-                typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
-                gravity = Gravity.CENTER
-                maxLines = 1
-            }
-            card.addView(icon)
-            card.addView(label, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(9) })
-            container.addView(card, LinearLayout.LayoutParams(0, dp(142), 1f).apply {
-                marginStart = dp(7)
-                marginEnd = dp(7)
-            })
-        }
-    }
-
-    @Suppress("DEPRECATION")
-    private fun renderInstalledApps() {
-        val container = findViewById<LinearLayout>(R.id.installedApps)
-        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val apps: List<ResolveInfo> = packageManager.queryIntentActivities(
-            launcherIntent, PackageManager.MATCH_ALL
-        ).filter { it.activityInfo.packageName != packageName }
-            .distinctBy { it.activityInfo.packageName }
-            .sortedBy { it.loadLabel(packageManager).toString().lowercase() }
-
-        val featuredPackages = featuredApps.map { it.packageName }.toSet()
-        val remaining = apps.filterNot { it.activityInfo.packageName in featuredPackages }
-        val columns = 5
-        var row: LinearLayout? = null
-        remaining.forEachIndexed { index, info ->
-            if (index % columns == 0) {
-                row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    gravity = Gravity.CENTER_VERTICAL
-                }
-                container.addView(row, LinearLayout.LayoutParams(-1, -2).apply {
-                    topMargin = dp(8)
-                    bottomMargin = dp(8)
-                })
-            }
-            row?.addView(appTile(info), LinearLayout.LayoutParams(0, dp(104), 1f))
-        }
-        val remainder = remaining.size % columns
-        if (remainder != 0) repeat(columns - remainder) {
-            row?.addView(View(this), LinearLayout.LayoutParams(0, dp(104), 1f))
-        }
-        if (remaining.isEmpty()) {
-            container.addView(TextView(this).apply {
-                text = "Your installed apps will appear here"
-                setTextColor(0xFF9AA8BC.toInt())
-                textSize = 14f
-                setPadding(0, dp(14), 0, dp(14))
-            })
-        }
-    }
-
-    private fun appTile(info: ResolveInfo): View {
-        val packageName = info.activityInfo.packageName
-        val labelText = info.loadLabel(packageManager).toString()
-        return LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            isClickable = true
-            isFocusable = true
-            setPadding(dp(4), dp(6), dp(4), dp(6))
-            setOnClickListener { launchPackage(packageName, labelText) }
-            addView(ImageView(this@CarPirdActivity).apply {
-                layoutParams = LinearLayout.LayoutParams(dp(42), dp(42))
-                try {
-                    setImageDrawable(info.loadIcon(packageManager))
-                } catch (_: Exception) {
-                    setImageResource(android.R.drawable.sym_def_app_icon)
-                }
-            })
-            addView(TextView(this@CarPirdActivity).apply {
-                text = labelText
-                setTextColor(0xFFE8EEF7.toInt())
-                textSize = 12f
-                gravity = Gravity.CENTER
-                maxLines = 1
-                ellipsize = android.text.TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(6) })
-        }
-    }
-
-    private fun launchPackage(packageName: String, label: String) {
-        try {
-            val launch = packageManager.getLaunchIntentForPackage(packageName)
-            if (launch == null) {
-                Toast.makeText(this, "$label is not available", Toast.LENGTH_SHORT).show()
-            } else {
-                startActivity(launch)
-            }
-        } catch (e: Exception) {
-            Toast.makeText(this, "Unable to open $label", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    private fun rounded(color: Int, radius: Int) = GradientDrawable().apply {
-        setColor(color)
-        cornerRadius = radius.toFloat()
+    private fun lighten(color: Int, amount: Int): Int = adjust(color, amount)
+    private fun darken(color: Int, amount: Int): Int = adjust(color, -amount)
+    private fun adjust(color: Int, amount: Int): Int {
+        val r = (Color.red(color) + amount).coerceIn(0, 255)
+        val g = (Color.green(color) + amount).coerceIn(0, 255)
+        val b = (Color.blue(color) + amount).coerceIn(0, 255)
+        return Color.rgb(r, g, b)
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
-
-    private data class FeaturedApp(val label: String, val packageName: String, val color: Int)
 }
