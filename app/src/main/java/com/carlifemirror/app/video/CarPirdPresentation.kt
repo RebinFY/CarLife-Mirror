@@ -56,7 +56,7 @@ class CarPirdPresentation(
         renderTiles()
         findViewById<View>(R.id.carpirdHome).setOnClickListener { renderClock() }
         findViewById<View>(R.id.carpirdBack).setOnClickListener {
-            context.startActivity(Intent(hostContext, CarPirdActivity::class.java))
+            hostContext.startActivity(Intent(hostContext, CarPirdActivity::class.java))
         }
         handler.post(tick)
     }
@@ -93,7 +93,7 @@ class CarPirdPresentation(
                 isFocusable = true
                 setOnClickListener { launch(tile.second, tile.first) }
             }
-            val frame = LinearLayout(context).apply {
+            val frame = LinearLayout(hostContext).apply {
                 gravity = Gravity.CENTER
                 background = GradientDrawable(
                     GradientDrawable.Orientation.TL_BR,
@@ -119,7 +119,7 @@ class CarPirdPresentation(
             }
             if (icon.drawable != null) frame.addView(icon)
             view.addView(frame, LinearLayout.LayoutParams(86, 86))
-            view.addView(TextView(context).apply {
+            view.addView(TextView(hostContext).apply {
                 text = tile.first
                 gravity = Gravity.CENTER
                 textSize = 13f
@@ -144,7 +144,7 @@ class CarPirdPresentation(
                 target.startsWith("http") -> Intent(Intent.ACTION_VIEW, android.net.Uri.parse(target))
                 target == "music" -> Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_APP_MUSIC)
                 target == "TV" -> Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER)
-                target.startsWith("com.") -> context.packageManager.getLaunchIntentForPackage(target)
+                target.startsWith("com.") -> hostContext.packageManager.getLaunchIntentForPackage(target)
                 else -> null
             }
             if (intent != null) {
