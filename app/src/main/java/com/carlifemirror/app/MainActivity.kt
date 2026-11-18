@@ -78,6 +78,7 @@ open class MainActivity : Activity() {
     private lateinit var statusProgress: ProgressBar
     private lateinit var heroIcon: ImageView
     private lateinit var primaryButton: Button
+    private lateinit var carpirdButton: Button
     private lateinit var splitButton: LinearLayout
     private lateinit var splitIcon: ImageView
     private lateinit var splitButtonLabel: TextView
@@ -196,6 +197,10 @@ open class MainActivity : Activity() {
     private val goHomeAfterStart = Runnable {
         if (isFinishing || isDestroyed) return@Runnable
         if (!MirrorState.value.projectionReady) return@Runnable
+        if (settings.carpirdMode) {
+            moveTaskToBack(true)
+            return@Runnable
+        }
         if (settings.splitAuto || settings.splitSessionActive) {
             Logx.i("Старт: сплит уже запланирован, на рабочий стол не ухожу")
             return@Runnable
@@ -566,6 +571,7 @@ open class MainActivity : Activity() {
         statusProgress = findViewById(R.id.statusProgress)
         heroIcon = findViewById(R.id.heroIcon)
         primaryButton = findViewById(R.id.primaryButton)
+        carpirdButton = findViewById(R.id.carpirdButton)
         splitButton = findViewById(R.id.splitButton)
         splitIcon = findViewById(R.id.splitIcon)
         splitButtonLabel = findViewById(R.id.splitButtonLabel)
@@ -628,6 +634,7 @@ open class MainActivity : Activity() {
             }
         }
         splitButton.setOnClickListener { requestSplitScreen() }
+        carpirdButton.setOnClickListener { toggleCarPird() }
         settingsButton.setOnClickListener { showSettings() }
         settingsBack.setOnClickListener { hideSettings() }
         splitFirstAppRow.setOnClickListener { showSplitAppPicker(SplitSlot.FIRST, launchAfterPick = false) }
@@ -1011,6 +1018,7 @@ open class MainActivity : Activity() {
         }
         heroIcon.imageTintList = ColorStateList.valueOf(color)
 
+        val dashboard = settings.carpirdMode
         val streaming = snapshot.projectionReady
         if (streaming != lastProjectionReady) {
             lastProjectionReady = streaming
@@ -1018,7 +1026,7 @@ open class MainActivity : Activity() {
             syncSystemRotation()
         }
         val retry = streaming && snapshot.phase == Phase.ERROR
-        primaryButton.visibility = View.VISIBLE
+        primaryButton.visibility = if (dashboard) View.GONE else View.VISIBLE
         primaryButton.text = when {
             retry -> getString(R.string.retry)
             streaming -> getString(R.string.stop_mirror)
@@ -1039,7 +1047,7 @@ open class MainActivity : Activity() {
             }
         )
 
-        splitButton.visibility = View.VISIBLE
+        splitButton.visibility = if (dashboard) View.GONE else View.VISIBLE
         val splitEnabled = streaming && !settings.splitAuto && !splitRecreateInProgress
         splitButton.isEnabled = splitEnabled
         splitButton.alpha = if (splitEnabled) 1f else 0.48f
@@ -1056,6 +1064,10 @@ open class MainActivity : Activity() {
             else -> ""
         }
         splitHint.visibility = if (splitHint.text.isBlank()) View.GONE else View.VISIBLE
+        carpirdButton.visibility = View.VISIBLE
+        carpirdButton.text = getString(if (dashboard) R.string.carpird_stop else R.string.carpird_start)
+        carpirdButton.setBackgroundResource(if (dashboard) R.drawable.bg_button_danger else R.drawable.bg_button_secondary)
+        carpirdButton.setTextColor(getColor(if (dashboard) R.color.error else R.color.accent))
 
         statusMeta.text = buildMeta(snapshot)
         statusMeta.setCompoundDrawablesWithIntrinsicBounds(
@@ -1569,6 +1581,27 @@ open class MainActivity : Activity() {
                 )
             }
             setMirrorLandscape(false)
+        }
+    }
+
+    private fun toggleCarPird() {
+        if (settings.carpirdMode && MirrorState.value.projectionReady) {
+            stopMirror()
+            return
+        }
+        if (MirrorState.value.projectionReady) {
+            Toast.makeText(this, R.string.stop_phone_screen_first, Toast.LENGTH_LONG).show()
+            return
+        }
+        settings.carpirdMode = true
+        val intent = Intent(this, MirrorService::class.java).setAction(MirrorService.ACTION_START_CARPIRD)
+        try {
+            startForegroundService(intent)
+            Logx.i("CarPird: requested standalone dashboard session")
+        } catch (e: Exception) {
+            settings.carpirdMode = false
+            Logx.e("CarPird start failed", e)
+            Toast.makeText(this, e.message ?: getString(R.string.carpird_start_error), Toast.LENGTH_LONG).show()
         }
     }
 
