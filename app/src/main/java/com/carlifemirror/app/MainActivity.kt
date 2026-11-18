@@ -206,11 +206,10 @@ open class MainActivity : Activity() {
         }
         try {
             startActivity(
-                Intent(Intent.ACTION_MAIN)
-                    .addCategory(Intent.CATEGORY_HOME)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                Intent(this, CarPirdActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
             )
-            Logx.i("Старт: открыт рабочий стол, приложение осталось в фоне")
+            Logx.i("Старт: открыт CarPird — экран приложений для автомобиля")
         } catch (e: Exception) {
             Logx.w("Не удалось открыть рабочий стол: ${e.message}; сворачиваю задачу")
             moveTaskToBack(true)
@@ -545,6 +544,10 @@ open class MainActivity : Activity() {
         }
         handleIntent(intent)
         refreshEnvironment()
+        if (intent.getBooleanExtra(EXTRA_OPEN_SETTINGS, false)) {
+            window.decorView.postDelayed({ showSettings() }, 80)
+            intent.removeExtra(EXTRA_OPEN_SETTINGS)
+        }
     }
 
     private fun bindViews() {
@@ -2571,6 +2574,6 @@ open class MainActivity : Activity() {
         private const val MAX_FIRST_LAUNCH_ATTEMPTS = 2
         private const val KEY_SPLIT_REQUESTED = "split_requested"
         private const val KEY_SETTINGS_VISIBLE = "settings_visible"
-        private const val EXTRA_OPEN_SETTINGS = "open_settings"
+        const val EXTRA_OPEN_SETTINGS = "open_settings"
     }
 }
