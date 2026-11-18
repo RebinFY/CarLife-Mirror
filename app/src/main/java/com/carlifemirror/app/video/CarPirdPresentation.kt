@@ -20,6 +20,8 @@ import com.carlifemirror.app.R
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * CarPird UI rendered directly on the app-owned secondary display.
@@ -157,6 +159,16 @@ class CarPirdPresentation(
     }
 
     fun dispatchTouch(x: Float, y: Float, action: Int, pointerId: Int = 0): Boolean {
+        if (Looper.myLooper() == Looper.getMainLooper()) return dispatchTouchOnMain(x, y, action)
+        val latch = CountDownLatch(1)
+        var handled = false
+        val posted = handler.post {
+            try { handled = dispatchTouchOnMain(x, y, action) } finally { latch.countDown() }
+        }
+        return posted && try { latch.await(500, TimeUnit.MILLISECONDS) && handled } catch (_: InterruptedException) { false }
+    }
+
+    private fun dispatchTouchOnMain(x: Float, y: Float, action: Int): Boolean {
         val target = root ?: return false
         val eventTime = android.os.SystemClock.uptimeMillis()
         val event = MotionEvent.obtain(eventTime, eventTime, action, x, y, 0)
