@@ -9,6 +9,8 @@ import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.media.projection.MediaProjection
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.DisplayMetrics
@@ -17,6 +19,7 @@ import android.view.WindowManager
 import com.carlifemirror.app.carlife.AnnexB
 import com.carlifemirror.app.util.Logx
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -157,9 +160,10 @@ class ScreenEncoder(
                         DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
                 ) ?: throw IllegalStateException("CarPird VirtualDisplay не создан")
                 virtualDisplay = display
-                val presentation = CarPirdPresentation(context, display.display)
+                val presentation = runOnMainThread {
+                    CarPirdPresentation(context, display.display).also { it.show() }
+                }
                 carPirdPresentation = presentation
-                presentation.show()
                 Logx.i("CarPird: dashboard shown on secondary display")
             } else {
                 val p = projection ?: throw IllegalStateException("MediaProjection missing")
@@ -178,7 +182,7 @@ class ScreenEncoder(
                 virtualDisplay = display
             }
         } catch (e: Exception) {
-            try { carPirdPresentation?.dismiss() } catch (_: Exception) {}
+            try { runOnMainThread { carPirdPresentation?.dismiss() } } catch (_: Exception) {}
             carPirdPresentation = null
             try { g?.stop() } catch (_: Exception) {}
             try { c.stop() } catch (_: Exception) {}
@@ -412,7 +416,7 @@ class ScreenEncoder(
         running = false
         try { thermalExec?.shutdownNow() } catch (_: Exception) {}
         thermalExec = null
-        try { carPirdPresentation?.dismiss() } catch (_: Exception) {}
+        try { runOnMainThread { carPirdPresentation?.dismiss() } } catch (_: Exception) {}
         carPirdPresentation = null
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
@@ -431,6 +435,23 @@ class ScreenEncoder(
             "Видео остановлено: кадров $frames, отброшено $dropped, " +
                 "кодек $codecName, термо ${thermalLevel.name}"
         )
+    }
+
+    /** Presentation/WindowManager operations must run on the main thread. */
+    private fun <T> runOnMainThread(block: () -> T): T {
+        if (Looper.myLooper() == Looper.getMainLooper()) return block()
+        val latch = CountDownLatch(1)
+        var result: Any? = null
+        var failure: Throwable? = null
+        val posted = Handler(Looper.getMainLooper()).post {
+            try { result = block() } catch (t: Throwable) { failure = t } finally { latch.countDown() }
+        }
+        if (!posted || !latch.await(10, TimeUnit.SECONDS)) {
+            throw IllegalStateException("Main thread did not process CarPird presentation")
+        }
+        failure?.let { throw it }
+        @Suppress("UNCHECKED_CAST")
+        return result as T
     }
 
     private fun emitConfig(data: ByteArray) {
