@@ -59,6 +59,11 @@ class Settings(context: Context) {
         get() = AppTheme.fromName(sp.getString("theme_mode", AppTheme.SYSTEM.name))
         set(value) = sp.edit().putString("theme_mode", value.name).apply()
 
+    /** True only while the independent CarPird display session is selected. */
+    var carpirdMode: Boolean
+        get() = sp.getBoolean("carpird_mode", false)
+        set(value) = sp.edit().putBoolean("carpird_mode", value).apply()
+
     /**
      * Режим подключения. Новые установки и обновления с прежних версий
      * начинают с USB, поэтому привычное поведение не меняется.
