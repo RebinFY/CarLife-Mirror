@@ -35,12 +35,13 @@ import java.util.concurrent.TimeUnit
  */
 class ScreenEncoder(
     private val context: Context,
-    private val projection: MediaProjection,
+    private val projection: MediaProjection?,
     val videoW: Int,
     val videoH: Int,
     private val fps: Int,
     private val bitrate: Int,
     private val listener: Listener,
+    private val carPirdDashboard: Boolean = false,
 ) {
     interface Listener {
         fun onConfig(csd: ByteArray)
@@ -68,6 +69,7 @@ class ScreenEncoder(
     private var inputSurface: Surface? = null
     @Volatile private var gl: GlLetterbox? = null
     private var virtualDisplay: VirtualDisplay? = null
+    private var carPirdPresentation: CarPirdPresentation? = null
     private var drainThread: Thread? = null
     @Volatile private var running = false
     @Volatile private var csd: ByteArray? = null
@@ -138,20 +140,42 @@ class ScreenEncoder(
             Logx.i(it)
         }
         try {
-            val capture = g.start()
-            gl = g
-            val display = projection.createVirtualDisplay(
-                "CarLifeMirror",
-                captureW,
-                captureH,
-                densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                capture,
-                null,
-                null,
-            ) ?: throw IllegalStateException("VirtualDisplay не создан")
-            virtualDisplay = display
+            if (carPirdDashboard) {
+                val manager = context.getSystemService(DisplayManager::class.java)
+                    ?: throw IllegalStateException("DisplayManager недоступен")
+                val display = manager.createVirtualDisplay(
+                    "CarPirdDashboard",
+                    videoW,
+                    videoH,
+                    densityDpi,
+                    surface,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_OWN_CONTENT_ONLY or
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_PRESENTATION,
+                ) ?: throw IllegalStateException("CarPird VirtualDisplay не создан")
+                virtualDisplay = display
+                val presentation = CarPirdPresentation(context, display.display)
+                carPirdPresentation = presentation
+                presentation.show()
+                Logx.i("CarPird: dashboard shown on secondary display")
+            } else {
+                val p = projection ?: throw IllegalStateException("MediaProjection missing")
+                val capture = g.start()
+                gl = g
+                val display = p.createVirtualDisplay(
+                    "CarLifeMirror",
+                    captureW,
+                    captureH,
+                    densityDpi,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                    capture,
+                    null,
+                    null,
+                ) ?: throw IllegalStateException("VirtualDisplay не создан")
+                virtualDisplay = display
+            }
         } catch (e: Exception) {
+            try { carPirdPresentation?.dismiss() } catch (_: Exception) {}
+            carPirdPresentation = null
             try { g.stop() } catch (_: Exception) {}
             try { c.stop() } catch (_: Exception) {}
             try { c.release() } catch (_: Exception) {}
@@ -357,7 +381,19 @@ class ScreenEncoder(
         else -> "$status"
     }
 
-    fun mapTouch(x: Int, y: Int): PointF? = gl?.mapTouch(x, y)
+    fun mapTouch(x: Int, y: Int): PointF? {
+        val presentation = carPirdPresentation
+        if (presentation != null) return presentation.mapPoint(x, y, videoW, videoH)
+        return gl?.mapTouch(x, y)
+    }
+
+    fun dispatchCarPirdTouch(x: Int, y: Int, action: Int): Boolean {
+        val presentation = carPirdPresentation ?: return false
+        val point = presentation.mapPoint(x, y, videoW, videoH)
+        return presentation.dispatchTouch(point.x, point.y, action)
+    }
+
+    val isCarPirdDashboard: Boolean get() = carPirdPresentation != null
 
     val frameCount: Long get() = frames
     val droppedCount: Long get() = dropped
@@ -372,6 +408,8 @@ class ScreenEncoder(
         running = false
         try { thermalExec?.shutdownNow() } catch (_: Exception) {}
         thermalExec = null
+        try { carPirdPresentation?.dismiss() } catch (_: Exception) {}
+        carPirdPresentation = null
         try { virtualDisplay?.release() } catch (_: Exception) {}
         virtualDisplay = null
         try { gl?.stop() } catch (_: Exception) {}
