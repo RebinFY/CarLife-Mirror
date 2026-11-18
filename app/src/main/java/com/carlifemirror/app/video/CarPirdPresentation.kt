@@ -167,7 +167,12 @@ class CarPirdPresentation(
         val posted = handler.post {
             try { handled = dispatchTouchOnMain(x, y, action) } finally { latch.countDown() }
         }
-        return posted && try { latch.await(500, TimeUnit.MILLISECONDS) && handled } catch (_: InterruptedException) { false }
+        if (!posted) return false
+        return try {
+            latch.await(500, TimeUnit.MILLISECONDS) && handled
+        } catch (_: InterruptedException) {
+            false
+        }
     }
 
     private fun dispatchTouchOnMain(x: Float, y: Float, action: Int): Boolean {
