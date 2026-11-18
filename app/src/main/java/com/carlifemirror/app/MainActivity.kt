@@ -144,6 +144,7 @@ open class MainActivity : Activity() {
     private var pendingAudioSwitch = false
     private var audioPermissionRequestPending = false
     private var pendingWirelessMode = false
+    private var pendingCarPirdStart = false
     private var pendingWirelessForProjection = false
     private var wirelessPermissionRequestPending = false
     private var checkingRotationPermission = false
@@ -1593,6 +1594,15 @@ open class MainActivity : Activity() {
             Toast.makeText(this, R.string.stop_phone_screen_first, Toast.LENGTH_LONG).show()
             return
         }
+        if (settings.connectionMode == ConnectMode.WIRELESS && !hasWirelessPermissions()) {
+            pendingCarPirdStart = true
+            requestWirelessPermissions()
+            return
+        }
+        startCarPirdSession()
+    }
+
+    private fun startCarPirdSession() {
         settings.carpirdMode = true
         val intent = Intent(this, MirrorService::class.java).setAction(MirrorService.ACTION_START_CARPIRD)
         try {
@@ -2547,6 +2557,10 @@ open class MainActivity : Activity() {
             val granted = hasWirelessPermissions()
             Logx.i("Разрешения для Wi-Fi: $granted")
             if (granted) {
+                if (pendingCarPirdStart) {
+                    pendingCarPirdStart = false
+                    startCarPirdSession()
+                }
                 if (pendingWirelessMode) {
                     pendingWirelessMode = false
                     settings.connectionMode = ConnectMode.WIRELESS
@@ -2558,6 +2572,7 @@ open class MainActivity : Activity() {
                 }
             } else {
                 pendingWirelessMode = false
+                pendingCarPirdStart = false
                 val wasProjection = pendingWirelessForProjection
                 pendingWirelessForProjection = false
                 updateConnectionUi()
