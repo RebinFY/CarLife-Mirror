@@ -318,6 +318,10 @@ class MirrorService : Service() {
                 Logx.rotateForNewSession(this)
                 Logx.i("CarPird: start app-owned dashboard without MediaProjection")
                 dashboardMode = true
+                settings.carpirdMode = true
+                settings.autoHomeDoneForSession = false
+                settings.autoSplitSuppressedForSession = true
+                settings.splitSessionActive = false
                 closing = false
                 reconnectAttempts = 0
                 main.removeCallbacks(reconnectRunnable)
