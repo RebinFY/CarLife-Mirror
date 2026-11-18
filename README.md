@@ -399,3 +399,8 @@ Wi-Fi дополнительно снижает FPS до 15 — разрешен
 
 Baidu и CarLife — товарные знаки соответствующих правообладателей. Название
 проекта используется только для описания совместимости.
+
+
+## CarPird dashboard (preview)
+
+The `feature/carpird-dashboard` branch adds a landscape launcher for the mirrored car display. After screen capture permission is granted, CarPird stays in the foreground and provides quick launch tiles for YouTube, Google Maps and Waze, plus a grid of installed apps. This preview is under development and has not yet been device-tested.
