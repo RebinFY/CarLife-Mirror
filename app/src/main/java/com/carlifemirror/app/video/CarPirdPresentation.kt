@@ -88,7 +88,7 @@ class CarPirdPresentation(
             Triple("Phone screen", "phone_screen", "▣"),
         )
         tiles.forEachIndexed { index, tile ->
-            val view = LinearLayout(hostContext).apply {
+            val view = LinearLayout(this@CarPirdPresentation).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isClickable = true
@@ -102,7 +102,7 @@ class CarPirdPresentation(
                     intArrayOf(0xFFF3F7FC.toInt(), 0xFF39485A.toInt())
                 ).apply { cornerRadius = 19f }
             }
-            val icon = ImageView(hostContext).apply {
+            val icon = ImageView(this@CarPirdPresentation).apply {
                 layoutParams = LinearLayout.LayoutParams(66, 66)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 val d = when {
@@ -110,7 +110,7 @@ class CarPirdPresentation(
                     else -> null
                 }
                 if (d != null) setImageDrawable(d) else {
-                    val fallback = TextView(hostContext).apply {
+                    val fallback = TextView(this@CarPirdPresentation).apply {
                         text = tile.third
                         gravity = Gravity.CENTER
                         textSize = 30f
@@ -133,7 +133,7 @@ class CarPirdPresentation(
             ).apply {
                 width = 0
                 height = 0
-                setMargins(7, 4, 7, 4)
+                setMargins(dp(7), dp(4), dp(7), dp(4))
             })
         }
     }
@@ -157,6 +157,8 @@ class CarPirdPresentation(
             // Keep the dashboard alive if an optional target app is unavailable.
         }
     }
+
+    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
     fun dispatchTouch(x: Float, y: Float, action: Int, pointerId: Int = 0): Boolean {
         if (Looper.myLooper() == Looper.getMainLooper()) return dispatchTouchOnMain(x, y, action)
