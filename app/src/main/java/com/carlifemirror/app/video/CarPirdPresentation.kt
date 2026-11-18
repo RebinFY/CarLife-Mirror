@@ -88,21 +88,21 @@ class CarPirdPresentation(
             Triple("Phone screen", "phone_screen", "▣"),
         )
         tiles.forEachIndexed { index, tile ->
-            val view = LinearLayout(this@CarPirdPresentation).apply {
+            val view = LinearLayout(getContext()).apply {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isClickable = true
                 isFocusable = true
                 setOnClickListener { launch(tile.second, tile.first) }
             }
-            val frame = LinearLayout(hostContext).apply {
+            val frame = LinearLayout(getContext()).apply {
                 gravity = Gravity.CENTER
                 background = GradientDrawable(
                     GradientDrawable.Orientation.TL_BR,
                     intArrayOf(0xFFF3F7FC.toInt(), 0xFF39485A.toInt())
                 ).apply { cornerRadius = 19f }
             }
-            val icon = ImageView(this@CarPirdPresentation).apply {
+            val icon = ImageView(getContext()).apply {
                 layoutParams = LinearLayout.LayoutParams(66, 66)
                 scaleType = ImageView.ScaleType.FIT_CENTER
                 val d = when {
@@ -110,7 +110,7 @@ class CarPirdPresentation(
                     else -> null
                 }
                 if (d != null) setImageDrawable(d) else {
-                    val fallback = TextView(this@CarPirdPresentation).apply {
+                    val fallback = TextView(getContext()).apply {
                         text = tile.third
                         gravity = Gravity.CENTER
                         textSize = 30f
@@ -158,7 +158,7 @@ class CarPirdPresentation(
         }
     }
 
-    private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+    private fun dp(value: Int): Int = (value * getContext().resources.displayMetrics.density).toInt()
 
     fun dispatchTouch(x: Float, y: Float, action: Int, pointerId: Int = 0): Boolean {
         if (Looper.myLooper() == Looper.getMainLooper()) return dispatchTouchOnMain(x, y, action)
