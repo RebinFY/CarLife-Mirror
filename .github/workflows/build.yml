@@ -2,7 +2,7 @@ name: Build CarLife Mirror APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, feature/carpird-dashboard ]
   workflow_dispatch: {}
 
 jobs:
@@ -22,7 +22,7 @@ jobs:
           SDKMANAGER=$(find /usr/local/lib/android/sdk/cmdline-tools -name sdkmanager | head -1)
           echo "Using: $SDKMANAGER"
           yes | "$SDKMANAGER" --licenses || true
-          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Grant execute permission
         run: chmod +x ./gradlew
