@@ -1594,6 +1594,10 @@ open class MainActivity : Activity() {
             Toast.makeText(this, R.string.stop_phone_screen_first, Toast.LENGTH_LONG).show()
             return
         }
+        if (pendingWirelessMode) {
+            pendingCarPirdStart = true
+            return
+        }
         if (settings.connectionMode == ConnectMode.WIRELESS && !hasWirelessPermissions()) {
             pendingCarPirdStart = true
             requestWirelessPermissions()
